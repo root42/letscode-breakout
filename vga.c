@@ -1,6 +1,26 @@
 #include "vga.h"
 
+#define SET_MODE 0x00
+#define VIDEO_INT 0x10
+#define VGA_256_COLOR_MODE 0x13
+#define TEXT_MODE 0x03
+
+#define PALETTE_INDEX 0x3C8
+#define PALETTE_DATA 0x3C9
+#define INPUT_STATUS 0x03DA
+#define VRETRACE 0x08
+
 byte far *VGA=(byte far *)0xA0000000L;
+
+void set_graphics_mode()
+{
+  set_mode(VGA_256_COLOR_MODE);
+}
+
+void set_text_mode()
+{
+  set_mode(TEXT_MODE);
+}
 
 void set_mode(byte mode)
 {
