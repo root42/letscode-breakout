@@ -36,9 +36,31 @@ typedef struct decoder_state {
   unsigned int tlx, tly, brx, bry, dy;
 };
 
-unsigned int read_code()
+byte load_byte( struct decoder_state *decoder )
 {
-  
+  if( decoder->b_pointer == decoder->block_size ) {
+    fread( decoder->buffer, decoder->block_size + 1, 1, decoder->gif_file );
+    decoder->b_pointer = 0;
+  }
+}
+
+unsigned int read_code( struct decoder_state *decoder )
+{
+  int counter;
+  unsigned int code = 0;
+
+  for( counter = 0; counter < decoder->code_size; ++counter )
+  {
+    if( ++(decoder->bits_in) == 9 ) {
+      decoder->temp = load_byte( decoder );
+      decoder->bits_in = 1;
+    }
+    if( decoder->temp & 1 ) {
+      decoder->code += 1 << counter;
+    }
+    decoder->temp >>= 1;
+  }
+  return code;
 }
 
 void next_pixel( struct decoder_state* decoder, unsigned int c)
