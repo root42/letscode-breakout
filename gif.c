@@ -1,7 +1,16 @@
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "gif.h"
 
+#define GIF_BLOCK_IMAGE 0x2C
+#define GIF_EXTENSION_APPLICATION 0xFF
+#define GIF_EXTENSION_COMMENT 0xFE
+#define GIF_EXTENSION_GFXCONTROL 0xF9
+#define GIF_EXTENSION_GFXCONTROL 0xF9
+#define GIF_EXTENSION_PLAINTEXT 0x01
+#define GIF_FLAG_COLOR_TABLE 0x80
+#define GIF_FLAG_INTERLACED 0x40
 #define GIF_PACK_COLOR_SIZE 0x07
 
 typedef struct gif_header {
@@ -12,16 +21,22 @@ typedef struct gif_header {
   byte aspect;
 };
 
+struct gif_descriptor {
+  unsigned int  image_left, image_top, image_width, image_height;
+  byte packed;
+};
+
 typedef struct gif_block {
   byte label;
   byte size;
 };
 
 typedef struct decoder_state {
-  FILE gif_file;
+  FILE *gif_file;
   struct image *img;
   unsigned int b_pointer;
   byte buffer[257];
+  byte block_size;
   byte code_size;
   char bits_in;
   byte temp;
@@ -65,43 +80,43 @@ unsigned int read_code( struct decoder_state *decoder )
 
 void next_pixel( struct decoder_state* decoder, unsigned int c)
 {
-  *(decoder->img->data * decoder->X + decoder->Y * decoder->img->width) = c & 255;
+  *(decoder->img->data + decoder->x + decoder->y * decoder->img->width) = c & 255;
 
-  if( ++(decoder->X) == decoder->brX )
+  if( ++(decoder->x) == decoder->brx )
   {
-    decoder.X = tlX;
-    switch( dY ) {
+    decoder->x = decoder->tlx;
+    switch( decoder->dy ) {
     case 0:
-      decoder.Y += 1;
+      decoder->y += 1;
       break;
     case 1:
-      decoder.Y += 2;
+      decoder->y += 2;
       break;
     case 2:
-      decoder.Y += 4;
+      decoder->y += 4;
       break;
     case 3:
     case 4:
-      decoder.Y += 8;
+      decoder->y += 8;
       break;
     }
-    if( Y >= brY ) {
-      switch( --dY ) {
+    if( decoder->y >= decoder->bry ) {
+      switch( --decoder->dy ) {
       case 3:
-	Y = 4;
+	decoder->y = 4;
 	break;
       case 2:
-	Y = 2;
+	decoder->y = 2;
 	break;
       case 1:
-	Y = 1;
+	decoder->y = 1;
 	break;
       }
     }
   }
 }
 
-byte out_string( struct *decoder, unsigned int cur_code )
+byte out_string( struct decoder_state *decoder, unsigned int cur_code )
 {
   unsigned int out_count;
   byte out_code[1024];
@@ -116,15 +131,15 @@ byte out_string( struct *decoder, unsigned int cur_code )
     } while( cur_code >= decoder->clear_code );
     out_code[out_count++] = cur_code;
     do {
-      next_pixel( out_code[--out_count] );
+      next_pixel( decoder, out_code[--out_count] );
     } while( out_count );
   }
   return cur_code;
 }
 
-image *load_gif( const char *filename )
+struct image *load_gif( const char *filename )
 {
-  image *img = NULL;
+  struct image *img = NULL;
   struct decoder_state decoder;
   struct gif_header header;
   struct gif_descriptor descriptor;
@@ -155,7 +170,7 @@ image *load_gif( const char *filename )
     bits_per_pixel = 4;
   }
 
-  img = malloc( sizeof( image ) );
+  img = malloc( sizeof( struct image ) );
   img->width = header.screen_width;
   img->height = header.screen_height;
 
@@ -163,9 +178,9 @@ image *load_gif( const char *filename )
   {
     fread( img->palette, 3, num_of_colors + 1, gif_file );
     for( i = 0; i <= num_of_colors; ++i ) {
-      img->palette[0] >>= 2;
-      img->palette[1] >>= 2;
-      img->palette[2] >>= 2;
+      img->palette[i][0] >>= 2;
+      img->palette[i][1] >>= 2;
+      img->palette[i][2] >>= 2;
     }
   }
 
@@ -178,6 +193,8 @@ image *load_gif( const char *filename )
     if( type == GIF_BLOCK_IMAGE ) {
       break;
     }
+
+    fread( &block, sizeof(struct gif_block), 1, gif_file);
 
     switch( block.label ) {
     case GIF_EXTENSION_GFXCONTROL:
@@ -193,14 +210,14 @@ image *load_gif( const char *filename )
     case GIF_EXTENSION_COMMENT:
     case GIF_EXTENSION_PLAINTEXT:
     {
-      byte block_size = 0;
       fseek( gif_file, block.size, SEEK_CUR );
-      while( 1 );
-      fread( &block_size, 1, 1, gif_file );
-      if( !block_size ) {
-	break;
+      while( 1 ) {
+	fread( &decoder.block_size, 1, 1, gif_file );
+	if( !decoder.block_size ) {
+	  break;
+	}
+	fseek( gif_file, decoder.block_size, SEEK_CUR );
       }
-      fseek( gif_file, block_size, SEEK_CUR );
       break;
     }
     default:
@@ -216,17 +233,17 @@ image *load_gif( const char *filename )
   {
     fread( img->palette, 3, num_of_colors + 1, gif_file );
     for( i = 0; i <= num_of_colors; ++i ) {
-      img->palette[0] >>= 2;
-      img->palette[1] >>= 2;
-      img->palette[2] >>= 2;
+      img->palette[i][0] >>= 2;
+      img->palette[i][1] >>= 2;
+      img->palette[i][2] >>= 2;
     }
   }
 
   decoder.tlx = descriptor.image_left;
   decoder.tly = descriptor.image_top;
-  decoder.brx = tlx + descriptor.image_width;
-  decoder.bry = tly + descriptor.image_height;
-  dy = ( descriptor.packed & GIF_FLAG_INTERLACED ) ? 4 : 0;
+  decoder.brx = decoder.tlx + descriptor.image_width;
+  decoder.bry = decoder.tly + descriptor.image_height;
+  decoder.dy = ( descriptor.packed & GIF_FLAG_INTERLACED ) ? 4 : 0;
 
   fread( &decoder.code_size, 1, 1, gif_file );
   fread( &decoder.block_size, 1, 1, gif_file );
@@ -241,19 +258,19 @@ image *load_gif( const char *filename )
   decoder.max_code = 1 << decoder.code_size;
   decoder.bits_in = 8;
 
-  img.x = descriptor.image_left;
-  img.y = descriptor.image_top;
-  decoder.img = &img;
+  decoder.x = descriptor.image_left;
+  decoder.y = descriptor.image_top;
+  decoder.img = img;
   
   do {
-    decoder.code = read_code();
+    decoder.code = read_code( &decoder );
     if( decoder.code == decoder.eoi_code ) {
       break;
     } else if( decoder.code == decoder.clear_code ) {
       decoder.free_code = decoder.first_free;
       decoder.code_size = decoder.init_code_size;
       decoder.max_code = 1 << decoder.code_size;
-      decoder.code = read_code();
+      decoder.code = read_code( &decoder );
       decoder.old_code = decoder.code;
       next_pixel( &decoder, decoder.code );
     } else {
@@ -261,7 +278,7 @@ image *load_gif( const char *filename )
 	decoder.suffix[decoder.free_code] = out_string( &decoder, decoder.code );
       } else {
 	decoder.suffix[decoder.free_code] = out_string( &decoder, decoder.old_code );
-	next_pixel( &decoder, suffix[decoder.free_code]);
+	next_pixel( &decoder, decoder.suffix[decoder.free_code]);
       }
       decoder.prefix[decoder.free_code++] = decoder.old_code;
       if( decoder.free_code >= decoder.max_code && decoder.code_size < 12 ) {
@@ -277,7 +294,7 @@ image *load_gif( const char *filename )
   return img;
 }
 
-void free_image(image *img)
+void free_image(struct image *img)
 {
   if( img == NULL ) {
     return;
@@ -287,3 +304,4 @@ void free_image(image *img)
   }
   free( img );
 }
+

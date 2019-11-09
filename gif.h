@@ -1,4 +1,4 @@
-#ifdef _GIF_H_
+#ifndef _GIF_H_
 #define _GIF_H_
 
 #include "types.h"
@@ -10,7 +10,8 @@ typedef struct image {
   byte *data;
 };
 
-image *load_gif( const char *filename );
-void free_image(image *img);
+struct image *load_gif( const char *filename );
+void free_image(struct image *img);
 
 #endif
+
