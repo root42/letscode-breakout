@@ -1,3 +1,3 @@
-game (gif.h vga.h)
-gif (gif.h)
-vga (vga.h)
+game (gif.h vga.h types.h)
+gif (gif.h types.h)
+vga (vga.h types.h)
