@@ -173,7 +173,9 @@ struct image *load_gif( const char *filename )
   img = malloc( sizeof( struct image ) );
   img->width = header.screen_width;
   img->height = header.screen_height;
-
+  img->data = malloc( sizeof( img->width * img->height ) );
+  memset( img->data, sizeof( byte ), sizeof( img->width * img->height ) );
+  
   if( header.packed & GIF_FLAG_COLOR_TABLE )
   {
     fread( img->palette, 3, num_of_colors + 1, gif_file );

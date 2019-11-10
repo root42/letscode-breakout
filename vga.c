@@ -1,3 +1,5 @@
+#include <dos.h>
+
 #include "vga.h"
 
 #define SET_MODE 0x00
@@ -83,3 +85,4 @@ void draw_rectangle( int x, int y, int w, int h, byte c )
     }
   }
 }
+
