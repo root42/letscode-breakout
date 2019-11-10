@@ -51,8 +51,6 @@ typedef struct decoder_state {
   unsigned int tlx, tly, brx, bry, dy;
 };
 
-struct decoder_state *decoder;
-
 byte load_byte( struct decoder_state *decoder )
 {
   if( decoder->b_pointer == decoder->block_size ) {
@@ -146,6 +144,7 @@ struct image *load_gif( const char *filename )
   struct image *img = NULL;
   struct gif_header header;
   struct gif_descriptor descriptor;
+  struct decoder_state *decoder;
 
   byte bits_per_pixel;
   byte num_of_colors;
