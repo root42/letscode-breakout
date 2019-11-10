@@ -217,11 +217,11 @@ struct image *load_gif( const char *filename )
     {
       fseek( gif_file, block.size, SEEK_CUR );
       while( 1 ) {
-	fread( &decoder->block_size, 1, 1, gif_file );
-	if( !decoder->block_size ) {
+	fread( &(block.size), 1, 1, gif_file );
+	if( !block.size ) {
 	  break;
 	}
-	fseek( gif_file, decoder->block_size, SEEK_CUR );
+	fseek( gif_file, block.size, SEEK_CUR );
       }
       break;
     }
