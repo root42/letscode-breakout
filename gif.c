@@ -34,12 +34,14 @@ typedef struct gif_block {
 typedef struct decoder_state {
   FILE *gif_file;
   struct image *img;
+
   unsigned int b_pointer;
   byte buffer[257];
   byte block_size;
   byte code_size;
   char bits_in;
   byte temp;
+
   unsigned int first_free;
   unsigned int free_code;
   byte init_code_size;
@@ -47,6 +49,7 @@ typedef struct decoder_state {
   unsigned int clear_code, eoi_code;
   unsigned int prefix[ 4096 ];
   byte suffix[ 4096 ];
+
   unsigned int x, y;
   unsigned int tlx, tly, brx, bry, dy;
 };
@@ -57,7 +60,7 @@ byte load_byte( struct decoder_state *decoder )
     fread( decoder->buffer, decoder->block_size + 1, 1, decoder->gif_file );
     decoder->b_pointer = 0;
   }
-  return decoder->buffer[decoder->b_pointer++];
+  return decoder->buffer[ decoder->b_pointer++ ];
 }
 
 unsigned int read_code( struct decoder_state *decoder )
@@ -266,7 +269,7 @@ struct image *load_gif( const char *filename )
   decoder->x = descriptor.image_left;
   decoder->y = descriptor.image_top;
   decoder->img = img;
-  
+
   do {
     decoder->code = read_code( decoder );
     if( decoder->code == decoder->eoi_code ) {
