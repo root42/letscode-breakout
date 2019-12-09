@@ -16,9 +16,14 @@ extern byte far *VGA;
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
 
 void set_graphics_mode();
+void set_mode_y()
 void set_text_mode();
 void set_mode( byte mode );
+void set_palette(byte *palette)
+
 void wait_for_retrace();
+void page_flip(byte **page1, byte **page2)
+
 void blit2mem( byte far *d, int x, int y, int w, int h );
 void blit2vga( byte far *s, int x, int y, int w, int h );
 void draw_rectangle( int x, int y, int w, int h, byte c );
