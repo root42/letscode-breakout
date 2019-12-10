@@ -127,7 +127,7 @@ void blit2page( byte far *s, byte far *page, int x, int y, int w, int h )
     {
       memcpy(
 	&VGA[screen_offset],
-	&s[bitmap_offset],
+	&s[p * page_size + bitmap_offset],
 	w >> 2
 	);
       bitmap_offset += w >> 2;
