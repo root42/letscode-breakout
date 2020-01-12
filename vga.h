@@ -32,7 +32,7 @@
 #define MODE_CONTROL 0x17
 
 /* VGA memory pointer, dimensions of each page and offset */
-extern byte far *VGA;
+extern const byte far *VGA;
 extern const int vga_width;
 extern const int vga_height;
 extern byte far *vga_page0;
@@ -47,24 +47,15 @@ extern byte far *vga_page1;
 #define SETPIX(x,y,c) *(VGA+(x)+(y)*SCREEN_WIDTH)=c
 #define GETPIX(x,y) *(VGA+(x)+(y)*SCREEN_WIDTH)
 
-/* inline functions for mode x/mode y */
-
-/**
- * Sets a pixel on the inactive page (page 1).
- */
-inline void setpix(int x, int y, byte c) {
-  outportw(SC_INDEX, MAP_MASK | (0x01 << (x & 3)) << 8 );
-  VGA[vga_width * y + x >> 2 + vga_page1 ] = c;
-}
-
 void set_graphics_mode();
-void set_mode_y()
+void set_mode_y();
 void set_text_mode();
 void set_mode( byte mode );
-void set_palette(byte *palette)
+void set_palette(byte *palette);
+void setpix(int x, int y, byte c);
 
 void wait_for_retrace();
-void page_flip(byte **page1, byte **page2)
+void page_flip(byte **page1, byte **page2);
 
 void blit2mem( byte far *d, int x, int y, int w, int h );
 void blit2vga( byte far *s, int x, int y, int w, int h );
@@ -72,3 +63,4 @@ void blit2page( byte far *s, byte far *page, int x, int y, int w, int h );
 void draw_rectangle( int x, int y, int w, int h, byte c );
 
 #endif
+

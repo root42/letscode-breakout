@@ -2,6 +2,7 @@
 #define _MY_TYPES_H_
 
 typedef unsigned char byte;
+typedef unsigned int word;
 
 #endif
 
