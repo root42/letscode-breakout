@@ -8,13 +8,12 @@
 #define VGA_256_COLOR_MODE 0x13
 #define TEXT_MODE 0x03
 
-const byte far *VGA=(byte far *)0xA0000000L;
+byte far * const VGA=(byte far *)0xA0000000L;
 
 /* dimensions of each page and offset */
-const int vga_width = 320;
-const int vga_height = 200;
-byte far *vga_page0;
-byte far *vga_page1;
+const word vga_width = 320;
+const word vga_height = 200;
+word vga_page[4];
 
 void set_graphics_mode()
 {
@@ -27,33 +26,39 @@ void set_mode_y()
 
   set_mode( VGA_256_COLOR_MODE );
 
-  vga_page0 = (byte far *)VGA;
-  vga_page1 = (byte far *)VGA + (vga_width * vga_height) / 4;
+  vga_page[0] = 0;
+  vga_page[1] = (vga_width * vga_height) / 4 * 1;
+  vga_page[2] = (vga_width * vga_height) / 4 * 2;
+  vga_page[3] = (vga_width * vga_height) / 4 * 3;
 
   /* disable chain 4 */
-  outport( SC_INDEX, MEMORY_MODE + 0x0600 );
-  /* disable word mode */
-  outport( CRTC_INDEX, MODE_CONTROL + 0xE300 );
+  outportb( SC_INDEX, MEMORY_MODE );
+  outportb( SC_DATA, 0x06 );
   /* disable doubleword mode */
-  outport( CRTC_INDEX, UNDERLINE_LOCATION + 0x0000 );
+  outportb( CRTC_INDEX, UNDERLINE_LOCATION );
+  outportb( CRTC_DATA, 0x00 );
+  /* disable word mode */
+  outportb( CRTC_INDEX, MODE_CONTROL );
+  outportb( CRTC_DATA, 0xE3 );
   /* clear all vga memory: enable all planes */
-  outport( SC_INDEX, ALL_PLANES );
+  outportb( SC_INDEX, MAP_MASK );
+  outportb( SC_DATA, 0xFF );
   /* size_t is 16 bit, so do it 2x */
   memset( VGA + 0x0000, 0, 0x8000 );
   memset( VGA + 0x8000, 0, 0x8000 );
 }
 
-void page_flip(byte **page1, byte **page2)
+void page_flip(word *page1, word *page2)
 {
   word high_address, low_address;
-  byte *temp;
+  word temp;
 
   temp = *page1;
   *page1 = *page2;
   *page2 = temp;
 
-  high_address = HIGH_ADDRESS | ((word)*page1 & 0xFF00);
-  low_address = LOW_ADDRESS | ((word)*page1 << 8);
+  high_address = HIGH_ADDRESS | (*page1 & 0xFF00);
+  low_address = LOW_ADDRESS | (*page1 << 8);
 
   while( inp( INPUT_STATUS ) & DISPLAY_ENABLE );
   outport( CRTC_INDEX, high_address );
@@ -116,23 +121,41 @@ void blit2vga( byte far *s, int x, int y, int w, int h )
   }
 }
 
-void blit2page( byte far *s, byte far *page, int x, int y, int w, int h )
+void setpix( word page, int x, int y, byte c) {
+  outportb(SC_INDEX, MAP_MASK);
+  outportb(SC_DATA, 0x01 << (x & 3));
+  VGA[page + ((vga_width * y) >> 2) + (x >> 2)] = c;
+}
+
+void copy2page( byte far *s, word page, int h )
+{
+  int i,j;
+  byte c;
+  for( j = 0; j < h; j++ ) {
+    for( i = 0; i < SCREEN_WIDTH; i++ ) {
+      c = s[ j * SCREEN_WIDTH + i ];
+      setpix( page, i, j, c );
+    }
+  }
+}
+
+void blit2page( byte far *s, word page, int x, int y, int w, int h )
 {
   int j;
   byte p;
   int screen_offset;
   int bitmap_offset;
-  const int page_size = (w * h) >> 2;
 
   for( p = 0; p < 4; p++ ) {
-    outport( SC_INDEX, MAP_MASK, ( 1 << ((p + x) & 3) ) << 8 );
+    outportb( SC_INDEX, MAP_MASK );
+    outportb( SC_DATA, 1 << ((p + x) & 3) );
     bitmap_offset = 0;
-    screen_offset = (y * vga_width + x + p) >> 2;
+    screen_offset = ((dword)y * vga_width + x + p) >> 2;
     for(j=0; j<h; j++)
     {
       memcpy(
-	&page[screen_offset],
-	&s[p * page_size + bitmap_offset],
+	&VGA[page + screen_offset],
+	&s[bitmap_offset],
 	w >> 2
 	);
       bitmap_offset += w >> 2;
@@ -153,8 +176,4 @@ void draw_rectangle( int x, int y, int w, int h, byte c )
   }
 }
 
-void setpix(int x, int y, byte c) {
-  outport(SC_INDEX, MAP_MASK | (0x01 << (x & 3)) << 8 );
-  vga_page1[vga_width * y + (x >> 2)] = c;
-}
 

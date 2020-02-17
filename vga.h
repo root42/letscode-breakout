@@ -9,6 +9,7 @@
 #define PALETTE_INDEX 0x3C8
 #define PALETTE_DATA 0x3C9
 #define INPUT_STATUS 0x03DA
+#define MISC_OUTPUT 0x3C2
 #define SC_INDEX 0x3C4
 #define SC_DATA 0x3C5
 #define GC_INDEX 0x03CE
@@ -32,11 +33,10 @@
 #define MODE_CONTROL 0x17
 
 /* VGA memory pointer, dimensions of each page and offset */
-extern const byte far *VGA;
-extern const int vga_width;
-extern const int vga_height;
-extern byte far *vga_page0;
-extern byte far *vga_page1;
+extern byte far * const VGA;
+extern const word vga_width;
+extern const word vga_height;
+extern word vga_page[4];
 
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -52,14 +52,15 @@ void set_mode_y();
 void set_text_mode();
 void set_mode( byte mode );
 void set_palette(byte *palette);
-void setpix(int x, int y, byte c);
+void setpix(word page, int x, int y, byte c);
 
 void wait_for_retrace();
-void page_flip(byte **page1, byte **page2);
+void page_flip(word *page1, word *page2);
 
+void copy2page( byte far *s, word page, int h );
 void blit2mem( byte far *d, int x, int y, int w, int h );
 void blit2vga( byte far *s, int x, int y, int w, int h );
-void blit2page( byte far *s, byte far *page, int x, int y, int w, int h );
+void blit2page( byte far *s, word page, int x, int y, int w, int h );
 void draw_rectangle( int x, int y, int w, int h, byte c );
 
 #endif

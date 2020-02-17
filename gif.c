@@ -298,6 +298,8 @@ struct image *load_gif( const char *filename )
   } while( decoder->code != decoder->eoi_code );
 
   fclose( gif_file );
+  free(decoder);
+  printf("\n");
 
   return img;
 }
@@ -312,4 +314,19 @@ void free_image(struct image *img)
   }
   free( img );
 }
-
+
+#if 0
+void convert_to_planes(struct image *img)
+{
+  byte old_c, new_c
+  int x, y;
+  for( y = 0; y < img->height; ++y ) {
+    for( x = 0; x < img->width; ++x ) {
+      img->data[ old_pos ] = old_c;
+      old_c = img->data[ y * img->height + x ];
+      new_pos = ((img->width * y) >> 2) + (x >> 2);
+      new_c = img->data[ new_pos ];
+    }
+  }
+}
+#endif
