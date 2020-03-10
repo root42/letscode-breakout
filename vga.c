@@ -11,9 +11,13 @@
 byte far * const VGA=(byte far *)0xA0000000L;
 
 /* dimensions of each page and offset */
-const word vga_width = 320;
-const word vga_height = 200;
-word vga_page[4];
+word vga_width = 320;
+word vga_height = 200;
+word vga_page[2];
+word vga_current_page = 0;
+word vga_x_pan = 0;
+byte vga_x_pel_pan = 0;
+word vga_y_pan = 0;
 
 void set_graphics_mode()
 {
@@ -33,13 +37,16 @@ void set_mode(byte mode)
   int86( VIDEO_INT, &regs, &regs );
 }
 
+void update_page_offsets()
+{
+  vga_page[0] = 0;
+  vga_page[1] = ((dword)vga_width*vga_height) / 4 * 1;
+}
+
 void set_mode_y()
 {
   set_mode( VGA_256_COLOR_MODE );
-  vga_page[0] = 0;
-  vga_page[1] = (vga_width*vga_height) / 4 * 1;
-  vga_page[2] = (vga_width*vga_height) / 4 * 2;
-  vga_page[3] = (vga_width*vga_height) / 4 * 3;
+  update_page_offsets();
   /* disable chain 4 */
   outportb( SC_INDEX, MEMORY_MODE );
   outportb( SC_DATA, 0x06 );
@@ -57,15 +64,58 @@ void set_mode_y()
   memset( VGA + 0x8000, 0, 0x8000 ); /* 0x10000 / 2 = 0x8000 */
 }
 
+void set_virtual_640()
+{
+  vga_width = 640;
+  update_page_offsets();
+  outportb( CRTC_INDEX, LINE_OFFSET );
+  outportb( CRTC_DATA, 80 );
+}
+
+void set_x_pan( int x )
+{
+  vga_x_pan = x / 4;
+  vga_x_pel_pan = x % 4;
+}
+
+void set_y_pan( int y )
+{
+  vga_y_pan = y;
+}
+
+void update_pan()
+{
+  byte ac;
+  word high_address, low_address, o;
+
+  o = vga_y_pan * (vga_width >> 2) + vga_x_pan;
+
+  high_address = HIGH_ADDRESS | (o & 0xFF00);
+  low_address = LOW_ADDRESS | (o << 8);
+  outport( CRTC_INDEX, high_address );
+  outport( CRTC_INDEX, low_address );
+  disable();
+  inp( INPUT_STATUS );
+  ac = inp( AC_WRITE );
+  outportb( AC_WRITE, PEL_PANNING );
+  outportb( AC_WRITE, vga_x_pel_pan );
+  outportb( AC_WRITE, ac );
+  while( inp( INPUT_STATUS ) & VRETRACE );
+  while( !(inp( INPUT_STATUS ) & VRETRACE ) );
+  enable();
+}
+
 void setpix( word page, int x, int y, byte c )
 {
   outportb( SC_INDEX, MAP_MASK );
   outportb( SC_DATA, 1 << (x & 3) );
-  VGA[ page + ((vga_width*y) >> 2) + (x >> 2) ] = c; /* x/4 is equal to x>>2 */
+  VGA[ page + ((dword)vga_width * y >> 2) + (x >> 2) ] = c;
+  /* x/4 is equal to x>>2 */
 }
 
 void page_flip( word *page1, word *page2 )
 {
+  byte ac;
   word temp;
   word high_address, low_address;
 
@@ -73,8 +123,8 @@ void page_flip( word *page1, word *page2 )
   *page1 = *page2;
   *page2 = temp;
 
-  high_address = HIGH_ADDRESS | (*page1 & 0xFF00);
-  low_address = LOW_ADDRESS | (*page1 << 8);
+  high_address = HIGH_ADDRESS | ((*page1 + vga_x_pan) & 0xFF00);
+  low_address = LOW_ADDRESS | ((*page1 + vga_x_pan) << 8);
   /*
     instead of:
     outportb( CRTC_INDEX, HIGH_ADDRESS );
@@ -84,20 +134,27 @@ void page_flip( word *page1, word *page2 )
     high_address = HIGH_ADDRESS | (*page1 & 0xFF00);
     outport( CRTC_INDEX, high_address );
    */
-  while( inp( INPUT_STATUS ) & DISPLAY_ENABLE );
   outport( CRTC_INDEX, high_address );
   outport( CRTC_INDEX, low_address );
+  disable();
+  while( inp( INPUT_STATUS ) & VRETRACE );
   while( !(inp( INPUT_STATUS ) & VRETRACE ) );
+  ac = inp( AC_WRITE );
+  outportb( AC_WRITE, PEL_PANNING );
+  outportb( AC_WRITE, vga_x_pel_pan );
+  outportb( AC_WRITE, ac );
+  enable();
+  vga_current_page = *page1;
 }
 
-void copy2page( byte far *s, word page, int h )
+void copy2page( byte far *s, word page, int x0, int y0, int w, int h )
 {
   int x,y;
   byte c;
   for( y = 0; y < h; y++ ) {
-    for( x = 0; x < vga_width; ++x ) {
-      c = s[ y * vga_width + x ];
-      setpix( page, x, y, c);
+    for( x = 0; x < w; ++x ) {
+      c = *(s + (dword)y * w + x);
+      setpix( page, x0 + x, y0 + y, c);
     }
   }
 }
@@ -121,12 +178,12 @@ void set_palette(byte *palette)
 void blit2mem( byte far *d, int x, int y, int w, int h )
 {
   int i;
-  byte far *src = (byte far *)VGA + x + y * SCREEN_WIDTH;
+  byte far *src = (byte far *)VGA + x + y * vga_width;
   byte far *dst = d;
   for( i = y; i < y + h; ++i ) {
     movedata( FP_SEG( src ), FP_OFF( src ),
 	      FP_SEG( dst ), FP_OFF( dst ), w );
-    src += SCREEN_WIDTH;
+    src += vga_width;
     dst += w;
   }
 }
@@ -135,12 +192,12 @@ void blit2vga( byte far *s, int x, int y, int w, int h )
 {
   int i;
   byte far *src = s;
-  byte far *dst = (byte far *)VGA + x + y * SCREEN_WIDTH;
+  byte far *dst = (byte far *)VGA + x + y * vga_width;
   for( i = y; i < y + h; ++i ) {
     movedata( FP_SEG( src ), FP_OFF( src ),
 	      FP_SEG( dst ), FP_OFF( dst ), w );
     src += w;
-    dst += SCREEN_WIDTH;
+    dst += vga_width;
   }
 }
 
@@ -175,7 +232,7 @@ void draw_rectangle( int x, int y, int w, int h, byte c )
   int i, j;
   for( j = y; j < y + h; ++j ) {
     for( i = x; i < x + w; ++i ) {
-      byte far *dst = (byte far *)VGA + i + j * SCREEN_WIDTH;
+      byte far *dst = (byte far *)VGA + i + j * vga_width;
       *dst = c;
     }
   }

@@ -4,10 +4,10 @@
 #include "types.h"
 
 typedef struct image {
-  unsigned int width;
-  unsigned int height;
+  word width;
+  word height;
   byte palette[256][3];
-  byte *data;
+  byte far *data;
 };
 
 struct image *load_gif( const char *filename );

@@ -1,3 +1,4 @@
+#include <alloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -179,7 +180,7 @@ struct image *load_gif( const char *filename )
   img = malloc( sizeof( struct image ) );
   img->width = header.screen_width;
   img->height = header.screen_height;
-  img->data = malloc( img->width * img->height );
+  img->data = (byte far *)farmalloc( img->width * img->height );
   memset( img->data, 0, sizeof( img->width * img->height ) );
 
   if( header.packed & GIF_FLAG_COLOR_TABLE )
@@ -310,7 +311,7 @@ void free_image(struct image *img)
     return;
   }
   if( img->data != NULL ) {
-    free( img->data );
+    farfree( img->data );
   }
   free( img );
 }
