@@ -13,7 +13,7 @@ byte far * const VGA=(byte far *)0xA0000000L;
 /* dimensions of each page and offset */
 word vga_width = 320;
 word vga_height = 200;
-word vga_page[2];
+word vga_page[4];
 word vga_current_page = 0;
 word vga_x_pan = 0;
 byte vga_x_pel_pan = 0;
@@ -40,7 +40,9 @@ void set_mode(byte mode)
 void update_page_offsets()
 {
   vga_page[0] = 0;
-  vga_page[1] = ((dword)vga_width*vga_height) / 4 * 1;
+  vga_page[1] = ((dword)vga_width*vga_height) / 4;
+  vga_page[2] = vga_page[1] * 2;
+  vga_page[3] = vga_page[1] * 3;
 }
 
 void set_mode_y()
@@ -69,16 +71,16 @@ void set_virtual_640()
   vga_width = 640;
   update_page_offsets();
   outportb( CRTC_INDEX, LINE_OFFSET );
-  outportb( CRTC_DATA, 80 );
+  outportb( CRTC_DATA, vga_width / 8 );
 }
 
-void set_x_pan( int x )
+void set_pan_x( int x )
 {
   vga_x_pan = x / 4;
   vga_x_pel_pan = x % 4;
 }
 
-void set_y_pan( int y )
+void set_pan_y( int y )
 {
   vga_y_pan = y;
 }
@@ -86,10 +88,9 @@ void set_y_pan( int y )
 void update_pan()
 {
   byte ac;
-  word high_address, low_address, o;
+  word o,high_address,low_address;
 
   o = vga_y_pan * (vga_width >> 2) + vga_x_pan;
-
   high_address = HIGH_ADDRESS | (o & 0xFF00);
   low_address = LOW_ADDRESS | (o << 8);
   outport( CRTC_INDEX, high_address );
@@ -137,12 +138,14 @@ void page_flip( word *page1, word *page2 )
   outport( CRTC_INDEX, high_address );
   outport( CRTC_INDEX, low_address );
   disable();
-  while( inp( INPUT_STATUS ) & VRETRACE );
-  while( !(inp( INPUT_STATUS ) & VRETRACE ) );
+#if 0
   ac = inp( AC_WRITE );
   outportb( AC_WRITE, PEL_PANNING );
   outportb( AC_WRITE, vga_x_pel_pan );
   outportb( AC_WRITE, ac );
+#endif
+  while( inp( INPUT_STATUS ) & VRETRACE );
+  while( !(inp( INPUT_STATUS ) & VRETRACE ) );
   enable();
   vga_current_page = *page1;
 }
@@ -205,19 +208,19 @@ void blit2page( byte far *s, word page, int x, int y, int w, int h )
 {
   int j;
   byte p;
-  int screen_offset;
-  int bitmap_offset;
+  dword screen_offset;
+  dword bitmap_offset;
 
   for( p = 0; p < 4; p++ ) {
     outportb( SC_INDEX, MAP_MASK );
     outportb( SC_DATA, 1 << ((p + x) & 3) );
-    bitmap_offset = 0;
+    bitmap_offset = p * w / 4 * h;
     screen_offset = ((dword)y * vga_width + x + p) >> 2;
     for(j=0; j<h; j++)
     {
       memcpy(
-	&VGA[page + screen_offset],
-	&s[bitmap_offset],
+	VGA + page + screen_offset,
+	s + bitmap_offset,
 	w >> 2
 	);
       bitmap_offset += w >> 2;

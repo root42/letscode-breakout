@@ -53,6 +53,8 @@ typedef struct decoder_state {
 
   unsigned int x, y;
   unsigned int tlx, tly, brx, bry, dy;
+
+  int modex;
 };
 
 byte load_byte( struct decoder_state *decoder )
@@ -83,9 +85,19 @@ unsigned int read_code( struct decoder_state *decoder )
   return code;
 }
 
-void next_pixel( struct decoder_state* decoder, unsigned int c)
+void next_pixel( struct decoder_state* decoder, unsigned int c )
 {
-  *(decoder->img->data + decoder->x + decoder->y * decoder->img->width) = c & 255;
+  word plane, x1, sx, sy, offset;
+  sx = decoder->img->width;
+  sy = decoder->img->height;
+  if( decoder->modex ) {
+    plane = decoder->x % 4;
+    x1 = decoder->x / 4;
+    offset = plane * (sx / 4) * sy;
+    *(decoder->img->data + offset + decoder->y * sx / 4 + x1) = c & 255;
+  } else {
+    *(decoder->img->data + decoder->x + decoder->y * sx) = c & 255;
+  }
 
   if( ++(decoder->x) == decoder->brx )
   {
@@ -143,7 +155,7 @@ byte out_string( struct decoder_state *decoder, unsigned int cur_code )
   return cur_code;
 }
 
-struct image *load_gif( const char *filename )
+struct image *load_gif( const char *filename, int modex )
 {
   struct image *img = NULL;
   struct gif_header header;
@@ -171,6 +183,7 @@ struct image *load_gif( const char *filename )
     return NULL;
   }
 
+  decoder->modex = modex;
   bits_per_pixel = 1 + (header.packed & GIF_PACK_COLOR_SIZE);
   num_of_colors = (1 << bits_per_pixel) - 1;
   if( bits_per_pixel > 1 && bits_per_pixel <= 4 ) {
@@ -180,7 +193,13 @@ struct image *load_gif( const char *filename )
   img = malloc( sizeof( struct image ) );
   img->width = header.screen_width;
   img->height = header.screen_height;
+  printf( "far core left: %lu\n", farcoreleft() );
   img->data = (byte far *)farmalloc( img->width * img->height );
+  if( img->data == NULL ) {
+    printf( "Error: could not get memory for image\n" );
+    free( img );
+    return NULL;
+  }
   memset( img->data, 0, sizeof( img->width * img->height ) );
 
   if( header.packed & GIF_FLAG_COLOR_TABLE )
@@ -287,7 +306,7 @@ struct image *load_gif( const char *filename )
 	decoder->suffix[decoder->free_code] = out_string( decoder, decoder->code );
       } else {
 	decoder->suffix[decoder->free_code] = out_string( decoder, decoder->old_code );
-	next_pixel( decoder, decoder->suffix[decoder->free_code]);
+	next_pixel( decoder, decoder->suffix[decoder->free_code] );
       }
       decoder->prefix[decoder->free_code++] = decoder->old_code;
       if( decoder->free_code >= decoder->max_code && decoder->code_size < 12 ) {
@@ -315,19 +334,4 @@ void free_image(struct image *img)
   }
   free( img );
 }
-
-#if 0
-void convert_to_planes(struct image *img)
-{
-  byte old_c, new_c
-  int x, y;
-  for( y = 0; y < img->height; ++y ) {
-    for( x = 0; x < img->width; ++x ) {
-      img->data[ old_pos ] = old_c;
-      old_c = img->data[ y * img->height + x ];
-      new_pos = ((img->width * y) >> 2) + (x >> 2);
-      new_c = img->data[ new_pos ];
-    }
-  }
-}
-#endif
+

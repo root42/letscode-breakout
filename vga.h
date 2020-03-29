@@ -42,7 +42,7 @@
 extern byte far * const VGA;
 extern word vga_width;
 extern word vga_height;
-extern word vga_page[2];
+extern word vga_page[4];
 
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -62,9 +62,9 @@ void wait_for_retrace();
 void page_flip(word *page1, word *page2);
 
 void copy2page( byte far *s, word page, int x, int y, int w, int h );
+void blit2page( byte far *s, word page, int x, int y, int w, int h );
 void blit2mem( byte far *d, int x, int y, int w, int h );
 void blit2vga( byte far *s, int x, int y, int w, int h );
-void blit2page( byte far *s, word page, int x, int y, int w, int h );
 void draw_rectangle( int x, int y, int w, int h, byte c );
 
 #endif

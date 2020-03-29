@@ -10,9 +10,8 @@ typedef struct image {
   byte far *data;
 };
 
-struct image *load_gif( const char *filename );
+struct image *load_gif( const char *filename, int modex );
 void free_image(struct image *img);
-void convert_to_planes(struct image *img);
 
 #endif
 
